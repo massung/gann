@@ -65,8 +65,8 @@ All rights reserved.
 
 (define (state->X st)
   (let ([dx (- (state-bx st) (state-x st))])
-    (list (/ dx width 0.5)                 ; distance of ball to paddle [-1,1]
-          (/ (state-angle st) pi))))       ; ball direction of travel [-1,1]
+    (column (/ dx width 0.5)                 ; distance of ball to paddle [-1,1]
+            (/ (state-angle st) pi))))       ; ball direction of travel [-1,1]
 
 ;; ----------------------------------------------------
 
@@ -105,7 +105,7 @@ All rights reserved.
          [loss? (> ny height)])
 
     ; return the reward and new state
-    (values (- paddle-size (abs (- nx px)))
+    (values (if hit-paddle? 1 0)
 
             ; new state
             (state px
@@ -144,10 +144,10 @@ All rights reserved.
 
 ;; ----------------------------------------------------
 
-(define-model pong-model seq-model%
+(define-seq-model pong-model
   [(dense-layer 5 .relu!)
    (dense-layer 5 .relu!)
-   (dense-layer 3 .softmax!)]
+   (dense-layer 3 .sigmoid!)]
   #:inputs 2)
 
 ;; ----------------------------------------------------
@@ -155,11 +155,10 @@ All rights reserved.
 (define dqn (new dqn%
                  [model pong-model]
                  [population-size 50]
+                 [do-action perform]
                  [initial-state new-state]
                  [state->X state->X]
-                 [perform perform]
-                 [batch-size #f]
-                 [gamma 0.5]))
+                 [batch-size #f]))
 
 ;; ----------------------------------------------------
 
@@ -174,7 +173,6 @@ All rights reserved.
                                                (let ([st (send dqn get-state)])
                                                  (send dc set-brush "black" 'solid)
                                                  (send dc draw-text (format "SCORE: ~a" (state-score st)) 5 5)
-                                                 (send dc draw-text (format "GENERATION: ~a" (get-field generation dqn)) 5 20)
                                                  (send dc set-brush "black" 'solid)
                                                  (send dc draw-rectangle (- (state-x st) paddle-size) y (* paddle-size 2) 5)
                                                  (send dc set-brush "red" 'solid)
@@ -184,7 +182,7 @@ All rights reserved.
          (define timer (new timer%
                             [interval 5]
                             [notify-callback (λ ()
-                                               (send dqn train-agents #:explore (epsilon-greedy) #:watch? #t)
+                                               (send dqn train-agents #:watch? #t)
                                                (send canvas refresh))]))
 
          ; stop learning/playing

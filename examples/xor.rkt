@@ -12,22 +12,26 @@ All rights reserved.
 (require "../main.rkt")
 
 ;; create a simple xor model
-(define-model xor-model seq-model%
-  [(dense-layer 5 .relu!)
-   (dense-layer 1 .gaussian!)]
+(define-seq-model <xor-model>
+  [(<dense-layer> 5 .relu!)
+   (<dense-layer> 1 .step!)]
   #:inputs 2)
 
 ;; create the xor neural network
-(define dnn (new dnn% [model xor-model]))
+(define dnn (new dnn% [model <xor-model>]))
 
 ;; construct training data set (X=input, Y=output)
-(define Xs '([0 0] [0 1] [1 0] [1 1]))
-(define Ys '([0]   [1]   [1]   [0]))
+(define-values (Xs Ys)
+  (training-data '([(0 0) (0)]
+                   [(0 1) (1)]
+                   [(1 0) (1)]
+                   [(1 1) (0)])))
 
 ;; train the network
-(time (send dnn train Xs Ys))
+(let ([fitness (fit-training-data Xs Ys)])
+  (send dnn train+ fitness))
 
 ;; run the test data to see the outputs
 (for ([X Xs])
-  (let ([Z (send dnn predict X)])
+  (let ([Z (call (send dnn get-model) X)])
     (displayln (format "~a -> ~a" X Z))))

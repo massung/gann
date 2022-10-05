@@ -9,32 +9,39 @@ All rights reserved.
 
 |#
 
+(require racket/generic)
+
+;; ----------------------------------------------------
+
 (require flomat)
 
 ;; ----------------------------------------------------
 
 (require "activation.rkt")
 (require "ga.rkt")
-(require "loss.rkt")
 
 ;; ----------------------------------------------------
 
-(provide layer<%>
+(provide call<%>
+         layer<%>
 
          ; layer classes
          dense-layer%
          recurrent-layer%
-         residual-layer%
 
-         ; layer constructors
+         ; layer builders
          dense-layer
-         recurrent-layer
-         residual-layer)
+         recurrent-layer)
+
+;; ----------------------------------------------------
+
+(define call<%>
+  (interface () call))
 
 ;; ----------------------------------------------------
 
 (define layer<%>
-  (interface (heritable<%>) step))
+  (interface (call<%> recomb<%>) get-inputs get-outputs))
 
 ;; ----------------------------------------------------
 
@@ -47,93 +54,56 @@ All rights reserved.
                 bias
                 activation)
 
-    ; return number of inputs and outputs
+    ; return the number of inputs and outputs
     (define/public (get-inputs) (ncols weights))
     (define/public (get-outputs) (nrows weights))
-    
-    ; run input vector
-    (define/public (step X)
+
+    ; process input vector
+    (define/public (call X)
       (activation (plus! (times weights X) bias)))
 
-    ; create a new layer crossing weights and biases
-    (define/public (crossover other)
-      (let* ([bias-other (get-field bias other)]
-             [weights-other (get-field weights other)])
-        (new this%
-             [activation activation]
-             [bias (.mutate! (recomb bias bias-other))]
-             [weights (.mutate! (recomb weights weights-other))])))))
+    ; recombine with another layer
+    (define/public (recomb other)
+      (new this%
+           [activation activation]
+           [bias (.mutate! (crossover bias (get-field bias other)))]
+           [weights (.mutate! (crossover weights (get-field weights other)))]))))
 
 ;; ----------------------------------------------------
 
 (define recurrent-layer%
   (class dense-layer%
     (super-new)
-
+    
     ; access superclass fields
     (inherit-field weights bias activation)
 
     ; previous outputs
-    (define v (make-vector (nrows weights)))
+    (define v (zeros (nrows weights) 1))
 
-    ; memory is attached to the output
+    ; attack previous outputs
     (define/override (get-outputs) (* (nrows weights) 2))
 
-    ; run input vector
-    (define/override (step X)
-      (let ([z (flomat->vector (activation (plus! (times weights X) bias)))])
-        (begin0 (matrix (vector-append z v))
+    ; process input vector
+    (define/override (call X)
+      (let ([z (super call X)])
+        (begin0 (stack z v)
 
-                ; save the output to memory
+                ; save output to memory
                 (set! v z))))))
 
 ;; ----------------------------------------------------
 
-(define residual-layer%
-  (class dense-layer%
-    (super-new)
-
-    ; access superclass fields
-    (inherit-field weights bias activation)
-
-    ; outputs of a residual layer must match the number of inputs
-    (unless (= (ncols weights) (nrows weights))
-      (error "Residual layer outputs must match inputs!"))
-    
-    ; run input vector
-    (define/override (step X)
-      (let ([Z (plus! (times weights X) bias)])
-        (activation (.+! Z X))))))
-
-;; ----------------------------------------------------
-
-(define (dense-layer outputs [activation .relu!])
+(define (<layer> class% outputs [activation .relu!])
   (λ (inputs)
     (let ([b (.-! (rand outputs 1) (rand outputs 1))]
           [w (.-! (rand outputs inputs) (rand outputs inputs))])
-      (new dense-layer%
+      (new class%
            [weights w]
            [bias b]
            [activation activation]))))
 
 ;; ----------------------------------------------------
 
-(define (residual-layer [activation .relu!])
-  (λ (inputs)
-    (let ([b (.-! (rand inputs 1) (rand inputs 1))]
-          [w (.-! (rand inputs) (rand inputs))])
-      (new residual-layer%
-           [weights w]
-           [bias b]
-           [activation activation]))))
-
-;; ----------------------------------------------------
-
-(define (recurrent-layer outputs [activation .relu!])
-  (λ (inputs)
-    (let ([b (.-! (rand outputs 1) (rand outputs 1))]
-          [w (.-! (rand outputs inputs) (rand outputs inputs))])
-      (new recurrent-layer%
-           [weights w]
-           [bias b]
-           [activation activation]))))
+(define dense-layer (curry <layer> dense-layer%))
+(define recurrent-layer (curry <layer> recurrent-layer%))

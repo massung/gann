@@ -9,6 +9,10 @@ All rights reserved.
 
 |#
 
+(require racket/generic)
+
+;; ----------------------------------------------------
+
 (require flomat)
 
 ;; ----------------------------------------------------
@@ -19,62 +23,56 @@ All rights reserved.
 
 ;; ----------------------------------------------------
 
-(provide model<%>
-
-         ; model classes
-         seq-model%
-
-         ; macros
-         define-model)
+(provide (all-defined-out))
 
 ;; ----------------------------------------------------
 
 (define model<%>
-  (interface () predict))
+  (interface (layer<%>)))
 
 ;; ----------------------------------------------------
 
 (define seq-model%
-  (class* object% (heritable<%> model<%>)
+  (class* object% (model<%>)
     (super-new)
 
     ; constructor fields
     (init-field layers)
 
-    ; return number of inputs and outputs
+    ; return the shape of the model
     (define/public (get-inputs) (send (first layers) get-inputs))
     (define/public (get-outputs) (send (last layers) get-outputs))
 
-    ; send input sequence through all layers
-    (define/public (predict X)
-      (for/fold ([Z (matrix X)])
+    ; run input vector through all layers
+    (define/public (call X)
+      (for/fold ([Z X])
                 ([layer layers])
-        (send layer step Z)))
+        (send layer call Z)))
 
-    ; create a new model crossing this with another
-    (define/public (crossover model)
-      (let ([layers-model (get-field layers model)])
+    ; recombine with another model
+    (define/public (recomb other)
+      (let ([layers-other (get-field layers other)])
         (new this% [layers (for/list ([a layers]
-                                      [b layers-model])
-                             (send a crossover b))])))))
+                                      [b layers-other])
+                             (send a recomb b))])))))
 
 ;; ----------------------------------------------------
 
-(define (build-layers layers inputs)
-  (for/list ([ctor layers])
-    (let ([layer (ctor inputs)])
-      (begin0 layer (set! inputs (send layer get-outputs))))))
+(define (seq-model . layers)
+  (λ (inputs)
+    (new seq-model%
+         [layers (for/list ([layer layers])
+                   (let ([layer (layer inputs)])
+                     (begin0 layer (set! inputs (send layer get-outputs)))))])))
 
 ;; ----------------------------------------------------
 
-(define-syntax (define-model stx)
+(define-syntax (define-seq-model stx)
   (syntax-case stx ()
-    [(_ name class% [layer ...])
-     #'(define (name inputs)
-         (new class% [layers (build-layers (list layer ...) inputs)]))]
-    [(_ name class% [layer ...] #:inputs inputs)
-     #'(define (name)
-         (new class% [layers (build-layers (list layer ...) inputs)]))]))
+    [(_ name [layer-builder ...] #:inputs inputs)
+     #'(define name
+         (let ([builder (seq-model layer-builder ...)])
+           (λ () (builder inputs))))]))
 
 ;; ----------------------------------------------------
 
@@ -82,14 +80,20 @@ All rights reserved.
   (require rackunit)
 
   ; create a new model builder
-  (define-model dummy-model seq-model%
+  (define-seq-model dummy-model
     [(dense-layer 2 .relu!)
-     (dense-layer 3 .gaussian!)])
+     (dense-layer 3 .gaussian!)]
+    #:inputs 1)
+
+  ; test recombination of models
+  (let ([a (dummy-model)]
+        [b (dummy-model)])
+    (void (send a recomb b)))
 
   ; ensure the shape of the model
-  (let ([dummy (dummy-model 1)])
+  (let ([dummy (dummy-model)])
     (check-equal? (send dummy get-inputs) 1)
     (check-equal? (send dummy get-outputs) 3)
 
     ; ensure we can run it
-    (void (send dummy predict '(0.5)))))
+    (void (send dummy call (column 0.5)))))

@@ -9,10 +9,14 @@ All rights reserved.
 
 |#
 
+(require flomat)
+
+;; ----------------------------------------------------
+
 (require "activation.rkt")
-(require "agent.rkt")
 (require "dnn.rkt")
 (require "dqn.rkt")
+(require "explore.rkt")
 (require "ga.rkt")
 (require "layer.rkt")
 (require "loss.rkt")
@@ -21,10 +25,14 @@ All rights reserved.
 ;; ----------------------------------------------------
 
 (provide (all-from-out "activation.rkt"
-                       "agent.rkt"
                        "dnn.rkt"
                        "dqn.rkt"
+                       "explore.rkt"
                        "ga.rkt"
                        "layer.rkt"
                        "loss.rkt"
                        "model.rkt"))
+
+;; ----------------------------------------------------
+
+(provide column)

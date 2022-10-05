@@ -35,22 +35,23 @@ All rights reserved.
 
 ;; ----------------------------------------------------
 
-(define (.softmax Z)
-  (let ([e (.exp Z)])
-    (./! e (for/sum ([n (flomat->vector e)]) n))))
+(define (.argmax Z)
+  (let ([q (for/fold ([q #f]) ([(i z) (in-col Z 0)])
+             (if (zero? i) z (max q z)))])
+    (apply column (for/list ([(_ z) (in-col Z 0)])
+                    (if (= z q) 1.0 0.0)))))
 
 ;; ----------------------------------------------------
 
-(define (.softmax! Z)
-  (let ([e (.exp! Z)])
-    (./! e (for/sum ([n (flomat->vector e)]) n))))
+(define (.softmax Z [tau 1.0])
+  (let* ([z (./ Z tau)]
+         [e (.exp! z)])
+    (./! e (for/sum ([(_ j) (in-col e 0)]) j))))
 
 ;; ----------------------------------------------------
 
 (define (batch-mean Z)
-  (/ (for/sum ([i (size Z)])
-       (ref Z i 0))
-     (size Z)))
+  (/ (for/sum ([(_ j) (in-col Z 0)]) j) (size Z)))
 
 ;; ----------------------------------------------------
 
@@ -59,10 +60,12 @@ All rights reserved.
     (let* ([n (batch-mean Z)]
          
            ; squared dev. from mean
-           [m (/ (for/sum ([i (size Z)])
-                   (let ([d (- (ref Z i 0) n)])
+           [m (/ (for/sum ([(_ j) (in-col Z 0)])
+                   (let ([d (- j n)])
                      (* d d)))
                  (size Z))])
       
       ; normalized Z
-      (activation (./! (.- Z n) (sqrt (- m epsilon)))))))
+      (activation (if (< m epsilon)
+                      Z
+                      (./! (.- Z n) (sqrt (- m epsilon))))))))

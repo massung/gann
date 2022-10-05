@@ -9,7 +9,6 @@ All rights reserved.
 
 |#
 
-(require racket/fixnum)
 (require racket/random)
 
 ;; gann library
@@ -39,6 +38,8 @@ the solution to the puzzle is.
 
 |#
 
+(require flomat)
+
 ;; number of colors in the answer
 (define N 2)
 
@@ -53,7 +54,7 @@ the solution to the puzzle is.
 (define guess-space (* color-space N))
 (define key-space (* N 3))
 (define turn-space (+ guess-space key-space))
-(define input-space (* turn-space max-guesses))
+(define input-space (+ (* turn-space max-guesses) max-guesses))
 
 ;; all possible actions
 (define action-space
@@ -73,12 +74,15 @@ the solution to the puzzle is.
 
 ;; create a new state
 (define (new-state [ans (random-sample colors N)])
-  (state ans '() '() (make-vector input-space) 0))
+  (state ans '() '() (zeros input-space 1) 0))
 
 ;; convert state to inputs
 (define (state->X st)
-  (let ([turn-vector (build-vector max-guesses (λ (i) (if (= i (state-turn st)) 1 0)))])
-    (vector-append (state-input st) turn-vector)))
+  (begin0 (state-input st)
+
+          ; reset the turn input vector
+          (for ([i max-guesses])
+            (mset! (state-input st) i 0 (if (= i (state-turn st)) 1 0)))))
 
 ;; given an answer and guess, return the keys
 (define (key-for-guess ans guess)
@@ -93,9 +97,9 @@ the solution to the puzzle is.
 (define (update-input! v turn guess key)
   (let ([turn-offset (* turn-space turn)])
     (for ([(g i) (in-indexed guess)])
-      (vector-set! v (+ turn-offset (* i color-space) (index-of colors g)) 1))
+      (mset! v (+ turn-offset (* i color-space) (index-of colors g)) 0 1))
     (for ([(k i) (in-indexed key)])
-      (vector-set! v (+ turn-offset guess-space (* i 3) (index-of '(X ! ?) k)) 1))))
+      (mset! v (+ turn-offset guess-space (* i 3) (index-of '(X ! ?) k)) 0 1))))
 
 ;; make a guess and return the reward, state, and terminal flag
 (define (make-guess st guess)
@@ -103,7 +107,7 @@ the solution to the puzzle is.
     (let* ([key (key-for-guess ans guess)]
 
            ; create the new state
-           [nst (state ans (cons guess guesses) (cons key keys) (vector-copy input) (add1 turn))]
+           [nst (state ans (cons guess guesses) (cons key keys) (copy-flomat input) (add1 turn))]
 
            ; is it game over?
            [won? (equal? guess ans)]
@@ -113,8 +117,9 @@ the solution to the puzzle is.
            [dup? (member guess guesses)]
 
            ; reward for this state
-           [reward (cond
-                     [lost? 0]         ; failure reward (sparse)
+           [reward (if won? 100 0)])
+#|
+      [lost? 0]         ; failure reward (sparse)
                      [won? 100]        ; victory reward (sparse)
                      [dup? 0]          ; no new information, that's bad
                      [else             ; key reward (dense)
@@ -126,7 +131,7 @@ the solution to the puzzle is.
                               [(cons _ 'X) (+ (or n 0) 1)]          ; gaining X is probably bad
                               [(cons _ '!) (+ (or n 0) 5)]          ; gaining ! is good
                               [(cons _ '?) (+ (or n 0) 2)])))])])   ; gaining ? can be good
-      
+  |#    
       ; update the input vector for the state
       (update-input! (state-input nst) turn guess key)
 
@@ -142,10 +147,10 @@ the solution to the puzzle is.
   (floor (* (+ input-space action-count max-guesses) 3/4)))
 
 ;; create a simple xor model
-(define-model mastermind-model seq-model%
-  [(dense-layer hidden-layer-n .relu!)
+(define-seq-model mastermind-model
+  [(<dense-layer> hidden-layer-n .relu!)
    ;(dense-layer hidden-layer-n .relu!)
-   (dense-layer action-count .softmax!)]
+   (<dense-layer> action-count .relu!)]
   #:inputs input-space)
 
 ;; create the DQN to train
@@ -154,12 +159,11 @@ the solution to the puzzle is.
                  [population-size 100]
                  [initial-state new-state]
                  [state->X state-input]
-                 [perform perform-action]
-                 [gamma 1.0]))
+                 [do-action perform-action]))
 
 ;; 
 (define (train [n 100])
-  (send dqn train #:explore (epsilon-greedy 0.1) #:generations n))
+  (send dqn train+ #:generations n))
 
 ;; pretty-print the output of a state
 (define (print-state st)
@@ -172,7 +176,6 @@ the solution to the puzzle is.
 
 ;; run through a single game
 (define (play)
-  (send dqn reset-state)
   (let take-turn ()
     (unless (send dqn predict)
       (take-turn)))
@@ -183,5 +186,3 @@ the solution to the puzzle is.
   (for ([i n])
     (train)
     (play)))
-
-#;(send dqn train #:explore (epsilon-explore))

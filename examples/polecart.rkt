@@ -34,13 +34,13 @@ All rights reserved.
 
 ;; create a new state with a small jerk applied to it
 (define (new-state)
-  (let ([dt (* (- (random) (random)) (degrees->radians 2))])
-    (state 0 0 0 dt)))
+  (let ([initial-angle (* (- (random) (random)) (degrees->radians 5))])
+    (state 0 0 initial-angle 0)))
 
 ;; convert the state into an input vector
 (define (state->X st)
   (match-let ([(state x dx theta dt) st])
-    (list x dx theta dt)))
+    (column x dx theta dt)))
 
 ;; return a new state with the given force applied
 (define (step-state st [f 0])
@@ -69,7 +69,7 @@ All rights reserved.
   (match-let ([(state x dx theta dt) st])
     (let ([angle (abs (radians->degrees theta))])
       (values
-       ; reward more for being straight up
+       ; reward for an ok angle
        (- 20 angle)
 
        ; create the new state
@@ -80,13 +80,13 @@ All rights reserved.
          [(3)  (step-state st (+ (* F 2)))]   ; apply a large force to move right
          [else (step-state st)])              ; do nothing
        
-       ; the state is terminal when the pole falls past 70 degrees or off screen
+       ; the state is terminal when the pole falls past 70 degrees or cart is off screen
        (or (> angle 70) (not (< -6 x 6)))))))
 
 ;; create the dqn model
-(define-model polecart-model seq-model%
+(define-seq-model polecart-model
   [(dense-layer 9 .relu!)
-   (dense-layer 5 .softmax!)]
+   (dense-layer 5 .sigmoid!)]
   #:inputs 4)
 
 ;; create the canvas
@@ -95,9 +95,10 @@ All rights reserved.
     (init-field
      [dqn (new dqn%
                [model polecart-model]
+               [do-action perform]
                [initial-state new-state]
                [state->X state->X]
-               [perform perform]
+               [population-size 50]
                [batch-size #f])])
 
     ; drawing the state
@@ -107,10 +108,6 @@ All rights reserved.
         (match-let ([(state x dx theta dt) (send dqn get-state)])
           (let ([x (+ (/ W 2) (* x 20))])   ; move to the center and scale
             (send dc set-pen "black" 1 'solid)
-            (send dc set-brush "black" 'solid)
-            (send dc draw-text (format "GENERATION: ~a" (get-field generation dqn)) 5 5)
-    
-            ; draw the ground and cart
             (send dc set-brush "black" 'solid)
             (send dc draw-line 0 Y W Y)
             (send dc draw-rectangle (- x 25) (- Y 25) 50 25)
@@ -123,7 +120,7 @@ All rights reserved.
 
     ; message to train agents and redraw
     (define/public (step-sim)
-      (send dqn train-agents #:explore (epsilon-greedy) #:watch? #t)
+      (send dqn train-agents #:watch? #t)
       (send this refresh))))
 
 ;; create the window frame
