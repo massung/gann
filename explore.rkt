@@ -50,7 +50,7 @@ All rights reserved.
       ; the curiosity model models ((S,S') -> A), where A is hot-encoded
       (define-seq-model curiosity-model
         [(dense-layer n .relu!)
-         (dense-layer o .sigmoid!)]
+         (dense-layer o .step!)]
         #:inputs (+ i i))
 
       ; initialize with the right model
@@ -102,25 +102,23 @@ All rights reserved.
 
 ;; ----------------------------------------------------
 
-(define (epsilon-greedy [epsilon 0.05])
-  (λ (Z)
-    (if (< (random) epsilon)
-        
-        ; choose a random action
-        (random (nrows Z))
-          
-        ; fallback to the "best" action
-        (greedy Z))))
+(define (epsilon-greedy Z [epsilon 0.05])
+  (if (< (random) epsilon)
+      
+      ; choose a random action
+      (random (nrows Z))
+      
+      ; fallback to the "best" action
+      (greedy Z)))
 
 ;; ----------------------------------------------------
 
-(define (boltzmann [tau 0.3])
-  (λ (Z)
-    (let ([n (random)])
-      (for/fold ([k #f]
-                 [q 0.0] #:result k)
-                ([(i z) (in-col (.softmax Z tau) 0)] #:break (< n q))
-        (values i (+ q z))))))
+(define (boltzmann Z [tau 0.3])
+  (let ([n (random)])
+    (for/fold ([k #f]
+               [q 0.0] #:result k)
+              ([(i z) (in-col (.softmax (./ Z tau)) 0)] #:break (< n q))
+      (values i (+ q z)))))
 
 ;; ----------------------------------------------------
 
@@ -146,7 +144,7 @@ All rights reserved.
     (let* ([n 1000]
            [R (make-vector (size Z) 0)])
       (for ([_ n])
-        (let ([i ((boltzmann 0.5) Z)])
+        (let ([i (boltzmann Z 0.5)])
           (vector-set! R i (add1 (vector-ref R i)))))
       
       ; plot how often each index was selected

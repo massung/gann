@@ -43,9 +43,8 @@ All rights reserved.
 
 ;; ----------------------------------------------------
 
-(define (.softmax Z [tau 1.0])
-  (let* ([z (./ Z tau)]
-         [e (.exp! z)])
+(define (.softmax Z)
+  (let ([e (.exp Z)])
     (./! e (for/sum ([(_ j) (in-col e 0)]) j))))
 
 ;; ----------------------------------------------------

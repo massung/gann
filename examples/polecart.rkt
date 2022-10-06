@@ -67,7 +67,8 @@ All rights reserved.
 ;; perform an action, return reward, state, and terminal
 (define (perform st action)
   (match-let ([(state x dx theta dt) st])
-    (let ([angle (abs (radians->degrees theta))])
+    (let* ([angle (abs (radians->degrees theta))]
+           [loss? (or (> angle 70) (not (< -6 x 6)))])
       (values
        ; reward for an ok angle
        (- 20 angle)
@@ -80,13 +81,13 @@ All rights reserved.
          [(3)  (step-state st (+ (* F 2)))]   ; apply a large force to move right
          [else (step-state st)])              ; do nothing
        
-       ; the state is terminal when the pole falls past 70 degrees or cart is off screen
-       (or (> angle 70) (not (< -6 x 6)))))))
+       ; the state is terminal
+       loss?))))
 
 ;; create the dqn model
 (define-seq-model polecart-model
   [(dense-layer 9 .relu!)
-   (dense-layer 5 .sigmoid!)]
+   (dense-layer 5 .softmax)]
   #:inputs 4)
 
 ;; create the canvas
@@ -95,10 +96,10 @@ All rights reserved.
     (init-field
      [dqn (new dqn%
                [model polecart-model]
-               [do-action perform]
+               [perform-action perform]
                [initial-state new-state]
                [state->X state->X]
-               [population-size 50]
+               [population-size 100]
                [batch-size #f])])
 
     ; drawing the state
@@ -120,7 +121,7 @@ All rights reserved.
 
     ; message to train agents and redraw
     (define/public (step-sim)
-      (send dqn train-agents #:watch? #t)
+      (send dqn train #:watch? #t)
       (send this refresh))))
 
 ;; create the window frame

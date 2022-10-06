@@ -58,14 +58,14 @@ All rights reserved.
 
     ; update the population, keep the best models
     (let ([n (quotient (vector-length xs) 10)])
-      (for ([i n] [x xs])
-        (vector-set! pop i (car x)))
+      (for ([(x i) (in-indexed xs)])
+        (if (< i n)
+            (vector-set! pop i (car x))
 
-      ; create new models from the elite
-      (for ([i (in-range n (vector-length xs))])
-        (let ([a (car (vector-ref xs (random n)))]
-              [b (car (vector-ref xs (random n)))])
-          (vector-set! pop i (send a recomb b)))))
+            ; create new models
+            (let ([a (car (vector-ref xs (random n)))]
+                  [b (car (vector-ref xs (random n)))])
+              (vector-set! pop i (send a recomb b))))))
 
     ; return the best fitness
     (cdr (vector-ref xs 0))))

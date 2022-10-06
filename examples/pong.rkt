@@ -105,7 +105,7 @@ All rights reserved.
          [loss? (> ny height)])
 
     ; return the reward and new state
-    (values (if hit-paddle? 1 0)
+    (values #;(- paddle-size (abs (- nx px))) (if hit-paddle? 1 0)
 
             ; new state
             (state px
@@ -147,7 +147,7 @@ All rights reserved.
 (define-seq-model pong-model
   [(dense-layer 5 .relu!)
    (dense-layer 5 .relu!)
-   (dense-layer 3 .sigmoid!)]
+   (dense-layer 3 .softmax)]
   #:inputs 2)
 
 ;; ----------------------------------------------------
@@ -155,9 +155,9 @@ All rights reserved.
 (define dqn (new dqn%
                  [model pong-model]
                  [population-size 50]
-                 [do-action perform]
                  [initial-state new-state]
                  [state->X state->X]
+                 [perform-action perform]
                  [batch-size #f]))
 
 ;; ----------------------------------------------------
@@ -182,7 +182,7 @@ All rights reserved.
          (define timer (new timer%
                             [interval 5]
                             [notify-callback (λ ()
-                                               (send dqn train-agents #:watch? #t)
+                                               (send dqn train #:watch? #t)
                                                (send canvas refresh))]))
 
          ; stop learning/playing
@@ -199,5 +199,6 @@ All rights reserved.
 
 ;; ----------------------------------------------------
   
-(module+ main
-  (send frame show #t))
+;(module+ main
+  (send frame show #t)
+;)

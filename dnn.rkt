@@ -50,7 +50,6 @@ All rights reserved.
 
     ; train a single generation, return the loss and the model
     (define/public (train fitness)
-      (println 'here)
       (next-gen! models fitness <))
 
     ; train network models
@@ -70,12 +69,12 @@ All rights reserved.
 ;; ----------------------------------------------------
 
 (define (training-data data)
-  (for/fold ([Xs '()] [Ys '()])
+  (for/fold ([Xs '()]
+             [Ys '()])
             ([in/out data])
-    (match in/out
-      [(list in out)
-       (values (cons (apply column in) Xs)
-               (cons (apply column out) Ys))])))
+    (match-let ([(list in out) in/out])
+      (values (cons (apply column in) Xs)
+              (cons (apply column out) Ys)))))
 
 ;; ----------------------------------------------------
 
