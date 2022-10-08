@@ -42,12 +42,12 @@ All rights reserved.
     (field [models (build-vector population-size (λ _ (model)))])
 
     ; return the best model
-    (define/public (get-model)
-      (vector-ref models 0))
+    (define/public (get-model [i 0])
+      (vector-ref models i))
 
     ; send inputs to the best model
-    (define/public (call X)
-      (send (get-model) call X))
+    (define/public (call X [i 0])
+      (send (get-model i) call X))
 
     ; train a single generation, return the loss and the model
     (define/public (train fitness)

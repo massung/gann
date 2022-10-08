@@ -94,13 +94,13 @@ All rights reserved.
 ;; create the canvas
 (define polecart%
   (class canvas%
-    (init-field
-     [dqn (new dqn%
-               [model polecart-model]
-               [perform-action perform]
-               [initial-state new-state]
-               [state->X state->X]
-               [batch-size #f])])
+    (define dqn
+      (new dqn%
+           [model polecart-model]
+           [perform-action perform]
+           [initial-state new-state]
+           [state->X state->X]
+           [batch-size #f]))
 
     ; drawing the state
     (super-new

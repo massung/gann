@@ -90,28 +90,28 @@ All rights reserved.
     (super-new [model (λ () (new agent% [model (model)]))])
 
     ; allow use of the get-model method
-    (inherit [get-agent get-model])
+    (inherit get-model)
     
     ; allow use of all the models
-    (inherit-field [agents models])
+    (inherit-field models)
 
     ; return the state of the best agent
-    (define/public (get-state)
-      (get-field state (get-agent)))
+    (define/public (get-state [i 0])
+      (get-field state (get-model i)))
 
     ; have the best agent step and perform an action
-    (define/public (step)
-      (send (get-agent) step))
+    (define/public (step [i 0])
+      (send (get-model i) step))
 
     ; advance to the next generation
     (define/private (next-gen)
-      (begin0 (next-gen! agents (λ (agent) (get-field reward agent)) >)
+      (begin0 (next-gen! models (λ (agent) (get-field reward agent)) >)
 
               ; reset batch counter
               (set! batch 0)
       
               ; reset agents
-              (for ([agent agents])
+              (for ([agent models])
                 (send agent reset-state))))
     
     ; perform actions for each agent
@@ -120,7 +120,7 @@ All rights reserved.
 
       ; true if all agents are terminal or batch is full
       (and (or (for/fold ([all-terminal? #t])
-                         ([agent agents])
+                         ([agent models])
                  (let ([terminal? (send agent step)])
                    (and all-terminal? terminal?)))
                
@@ -128,7 +128,7 @@ All rights reserved.
                (and batch-size (>= batch batch-size))
                
                ; watched agent in terminal state
-               (and watch? (get-field terminal? (get-agent))))
+               (and watch? (get-field terminal? (get-model))))
 
            ; advance agents to the next generation
            (next-gen)))

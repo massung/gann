@@ -11,12 +11,10 @@ All rights reserved.
 
 (require racket/gui)
 
-;; ----------------------------------------------------
-
+;; gann code
 (require "../main.rkt")
 
-;; ----------------------------------------------------
-
+;; global settings
 (define width 200)
 (define height 300)
 (define ball-speed 150)
@@ -25,57 +23,47 @@ All rights reserved.
 (define paddle-size 30)
 (define dt 33/1000)
 
-;; ----------------------------------------------------
-
+;; globals calculated from size of playfield
 (define middle (/ width 2.0))
 (define y (* height 4/5))
 
-;; ----------------------------------------------------
-
+;; random x position on the playfield
 (define (random-x [margin 0])
   (+ (* (random) (- width (* margin 2))) margin))
 
-;; ----------------------------------------------------
-
+;; return a clamped x position on the playfield
 (define (clamp-x x [margin 0])
   (max (min x (- width margin)) margin))
 
-;; ----------------------------------------------------
-
+;; random starting angle
 (define (random-angle)
   (+ (/ pi 4) (* (/ pi 2) (random))))
 
-;; ----------------------------------------------------
-
+;; state structure
 (struct state [x      ; paddle position
                bx     ; ball x
                by     ; ball y
                angle  ; ball direction
                speed  ; ball speed
                score  ; consecutive ceiling hits
-               ]
-  #:transparent)
+               ])
 
-;; ----------------------------------------------------
-  
+;; random state to being
 (define (new-state)
   (state middle (random-x radius) radius (- (random-angle)) ball-speed 0))
 
-;; ----------------------------------------------------
-
+;; conversion of state to a column vector input
 (define (state->X st)
   (let ([dx (- (state-bx st) (state-x st))])
     (column (/ dx width 0.5)                 ; distance of ball to paddle [-1,1]
             (/ (state-angle st) pi))))       ; ball direction of travel [-1,1]
 
-;; ----------------------------------------------------
-
+;; change the direction of travel of the ball by 90 deg
 (define (bounce angle fx fy)
   (atan (* fy (sin angle))
         (* fx (cos angle))))
 
-;; ----------------------------------------------------
-
+;; update the state and return a reward for the paddle
 (define (perform st action)
   (let* ([speed (state-speed st)]
 
@@ -128,7 +116,7 @@ All rights reserved.
                       (bounce (state-angle st) -1 1)]
                      
                      ; bounce off top
-                     [hit-top? (bounce (state-angle st)  1 -1)]
+                     [hit-top? (bounce (state-angle st) 1 -1)]
                      
                      ; move in same direction
                      [else (state-angle st)])
@@ -142,48 +130,54 @@ All rights reserved.
             ;; terminal state on ball loss
             loss?)))
 
-;; ----------------------------------------------------
-
+;; ML model
 (define-seq-model pong-model
   [(dense-layer 5 .relu!)
    (dense-layer 5 .relu!)
    (dense-layer 3 .relu!)]
   #:inputs 2)
 
-;; ----------------------------------------------------
+;; create the canvas
+(define pong%
+  (class canvas%
+    (define dqn
+      (new dqn%
+           [model pong-model]
+           [population-size 50]
+           [initial-state new-state]
+           [state->X state->X]
+           [perform-action perform]
+           [batch-size #f]))
 
-(define dqn (new dqn%
-                 [model pong-model]
-                 [population-size 50]
-                 [initial-state new-state]
-                 [state->X state->X]
-                 [perform-action perform]
-                 [batch-size #f]))
+    ; draw the state of the best agent
+    (super-new
+     [paint-callback
+      (λ (canvas dc)
+        (match-let ([(state x bx by angle speed score) (send dqn get-state)])
+          (send dc set-brush "black" 'solid)
+          (send dc draw-text (format "SCORE: ~a" score) 5 5)
+          (send dc set-brush "black" 'solid)
+          (send dc draw-rectangle (- x paddle-size) y (* paddle-size 2) 5)
+          (send dc set-brush "red" 'solid)
+          (send dc draw-ellipse (- bx radius) (- by radius) (* radius 2) (* radius 2))))])
 
-;; ----------------------------------------------------
+    ; perform agent actions, train network, and redraw
+    (define/public (step)
+      (send dqn train #:watch? #t)
+      (send this refresh))))
 
+;; create the window frame
 (define frame
   (new (class frame%
          (super-new)
 
          ; playfield canvas
-         (define canvas (new canvas%
-                             [parent this]
-                             [paint-callback (λ (canvas dc)
-                                               (let ([st (send dqn get-state)])
-                                                 (send dc set-brush "black" 'solid)
-                                                 (send dc draw-text (format "SCORE: ~a" (state-score st)) 5 5)
-                                                 (send dc set-brush "black" 'solid)
-                                                 (send dc draw-rectangle (- (state-x st) paddle-size) y (* paddle-size 2) 5)
-                                                 (send dc set-brush "red" 'solid)
-                                                 (send dc draw-ellipse (- (state-bx st) radius) (- (state-by st) radius) (* radius 2) (* radius 2))))]))
-
+         (define canvas (new pong% [parent this]))
+         
          ; game loop timer
          (define timer (new timer%
-                            [interval 5]
-                            [notify-callback (λ ()
-                                               (send dqn train #:watch? #t)
-                                               (send canvas refresh))]))
+                            [interval 10]
+                            [notify-callback (λ () (send canvas step))]))
 
          ; stop learning/playing
          (define/augment (on-close)
@@ -195,7 +189,6 @@ All rights reserved.
        [height height]
        [style '(no-resize-border)]))
 
-;; ----------------------------------------------------
-  
+;; run the program
 (module+ main
   (send frame show #t))
