@@ -64,10 +64,11 @@ All rights reserved.
 
     ; recombine with another layer
     (define/public (recomb other)
-      (new this%
-           [activation activation]
-           [bias (.mutate! (crossover bias (get-field bias other)))]
-           [weights (.mutate! (crossover weights (get-field weights other)))]))))
+      (let ([hap (rand (nrows weights) 1)])
+        (new this%
+             [activation activation]
+             [bias (.mutate! (crossover hap bias (get-field bias other)))]
+             [weights (.mutate! (crossover hap weights (get-field weights other)))])))))
 
 ;; ----------------------------------------------------
 

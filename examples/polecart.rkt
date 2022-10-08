@@ -30,21 +30,21 @@ All rights reserved.
 (define Y (* H 4/5))
 
 ;; define the state of the polecart
-(struct state [x dx theta dt])
+(struct state [score x dx theta dt])
 
 ;; create a new state with a small jerk applied to it
 (define (new-state)
   (let ([initial-angle (* (- (random) (random)) (degrees->radians 5))])
-    (state 0 0 initial-angle 0)))
+    (state 0 0 0 initial-angle 0)))
 
 ;; convert the state into an input vector
 (define (state->X st)
-  (match-let ([(state x dx theta dt) st])
+  (match-let ([(state score x dx theta dt) st])
     (column x dx theta dt)))
 
 ;; return a new state with the given force applied
 (define (step-state st [f 0])
-  (match-let ([(state x dx theta dt) st])
+  (match-let ([(state score x dx theta dt) st])
     (let* ([s (sin theta)]
            [c (cos theta)]
 
@@ -59,19 +59,20 @@ All rights reserved.
            [ddx (/ (- (* Mp L (- (* dt dt s) (* ddt c))) f) M)])
 
       ; return the new state
-      (state (+ x (* dx S))
+      (state (+ score S)
+             (+ x (* dx S))
              (+ dx (* ddx S))
              (+ theta (* dt S))
              (+ dt (* ddt S))))))
 
 ;; perform an action, return reward, state, and terminal
 (define (perform st action)
-  (match-let ([(state x dx theta dt) st])
+  (match-let ([(state score x dx theta dt) st])
     (let* ([angle (abs (radians->degrees theta))]
            [loss? (or (> angle 70) (not (< -6 x 6)))])
       (values
        ; reward for an ok angle
-       (- 20 angle)
+       (- 10 angle (abs x))
 
        ; create the new state
        (case action
@@ -87,7 +88,7 @@ All rights reserved.
 ;; create the dqn model
 (define-seq-model polecart-model
   [(dense-layer 9 .relu!)
-   (dense-layer 5 .softmax)]
+   (dense-layer 5 .relu!)]
   #:inputs 4)
 
 ;; create the canvas
@@ -99,17 +100,17 @@ All rights reserved.
                [perform-action perform]
                [initial-state new-state]
                [state->X state->X]
-               [population-size 100]
                [batch-size #f])])
 
     ; drawing the state
     (super-new
      [paint-callback
       (λ (canvas dc)
-        (match-let ([(state x dx theta dt) (send dqn get-state)])
+        (match-let ([(state score x dx theta dt) (send dqn get-state)])
           (let ([x (+ (/ W 2) (* x 20))])   ; move to the center and scale
             (send dc set-pen "black" 1 'solid)
             (send dc set-brush "black" 'solid)
+            (send dc draw-text (format "SCORE: ~a" (floor score)) 5 5)
             (send dc draw-line 0 Y W Y)
             (send dc draw-rectangle (- x 25) (- Y 25) 50 25)
 
@@ -145,8 +146,6 @@ All rights reserved.
        
        ; initialization fields
        [label "DQN Polecart"]
-       [x 0]
-       [y 0]
        [width W]
        [height H]
        [style '(no-resize-border)]))

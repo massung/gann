@@ -35,10 +35,11 @@ All rights reserved.
     (super-new)
 
     ; constructor fields
-    (init-field model [population-size 100])
+    (init-field model
+                [population-size 100])
 
     ; build the initial population
-    (field [models (build-vector population-size (λ (_) (model)))])
+    (field [models (build-vector population-size (λ _ (model)))])
 
     ; return the best model
     (define/public (get-model)

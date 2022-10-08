@@ -20,7 +20,6 @@ All rights reserved.
 
 (require "activation.rkt")
 (require "dnn.rkt")
-(require "explore.rkt")
 (require "ga.rkt")
 (require "layer.rkt")
 (require "loss.rkt")
@@ -45,9 +44,6 @@ All rights reserved.
                 [gamma 0.9]
                 [batch-size 500])
 
-    ; create a curiosity (exploration) model
-    (define explore (new explore% [model model]))
-
     ; batch count for this generation
     (define batch 0)
 
@@ -71,28 +67,20 @@ All rights reserved.
           (set! terminal? #f))
 
         ; run input vector
-        (define/public (step [train? #f])
+        (define/public (step)
           (or terminal?
 
               ; choose action, perform, and update state
               (let* ([X (state->X state)]
-                     [Z (send model call X)]
-                     [k (greedy Z)])
-                (let-values ([(r new-state new-terminal?)
-                              (perform-action state k)])
+                     [Z (send model call X)])
+                (let-values ([(new-reward new-state new-terminal?)
+                              (perform-action state (.argmax Z))])
                   (begin0 new-terminal?
 
-                          ; update fields
+                          ; update state fields
                           (set! state new-state)
                           (set! terminal? new-terminal?)
-
-                          ; update explore model when training
-                          (when train?
-                            (let* ([Y (state->X new-state)]
-                                   [X+Y (stack X Y)]
-                                   [K (hot-encode k (size Z))]
-                                   [R (send explore get-curiosity X+Y K)])
-                              (set! reward (+ reward (* r (expt gamma batch)) R)))))))))
+                          (set! reward (+ reward new-reward)))))))
         
         ; recombine with another agent
         (define/public (recomb other)
@@ -111,16 +99,20 @@ All rights reserved.
     (define/public (get-state)
       (get-field state (get-agent)))
 
+    ; have the best agent step and perform an action
+    (define/public (step)
+      (send (get-agent) step))
+
     ; advance to the next generation
     (define/private (next-gen)
-      (next-gen! agents (λ (agent) (get-field reward agent)) >)
+      (begin0 (next-gen! agents (λ (agent) (get-field reward agent)) >)
 
-      ; reset batch counter
-      (set! batch 0)
+              ; reset batch counter
+              (set! batch 0)
       
-      ; reset agents
-      (for ([agent agents])
-        (send agent reset-state)))
+              ; reset agents
+              (for ([agent agents])
+                (send agent reset-state))))
     
     ; perform actions for each agent
     (define/override (train #:watch? [watch? #f])
@@ -129,7 +121,7 @@ All rights reserved.
       ; true if all agents are terminal or batch is full
       (and (or (for/fold ([all-terminal? #t])
                          ([agent agents])
-                 (let ([terminal? (send agent step #t)])
+                 (let ([terminal? (send agent step)])
                    (and all-terminal? terminal?)))
                
                ; batch full?

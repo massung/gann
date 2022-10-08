@@ -36,10 +36,12 @@ All rights reserved.
 ;; ----------------------------------------------------
 
 (define (.argmax Z)
-  (let ([q (for/fold ([q #f]) ([(i z) (in-col Z 0)])
-             (if (zero? i) z (max q z)))])
-    (apply column (for/list ([(_ z) (in-col Z 0)])
-                    (if (= z q) 1.0 0.0)))))
+  (for/fold ([k #f]
+             [q #f] #:result k)
+            ([(i z) (in-col Z 0)])
+    (if (or (not q) (> z q))
+        (values i z)
+        (values k q))))
 
 ;; ----------------------------------------------------
 

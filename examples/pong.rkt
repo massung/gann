@@ -105,7 +105,7 @@ All rights reserved.
          [loss? (> ny height)])
 
     ; return the reward and new state
-    (values #;(- paddle-size (abs (- nx px))) (if hit-paddle? 1 0)
+    (values (- paddle-size (abs (- nx px))) #;(if hit-paddle? 1 0)
 
             ; new state
             (state px
@@ -147,7 +147,7 @@ All rights reserved.
 (define-seq-model pong-model
   [(dense-layer 5 .relu!)
    (dense-layer 5 .relu!)
-   (dense-layer 3 .softmax)]
+   (dense-layer 3 .relu!)]
   #:inputs 2)
 
 ;; ----------------------------------------------------
@@ -191,14 +191,11 @@ All rights reserved.
 
        ; initialization fields
        [label "DQN Pong"]
-       [x 0]
-       [y 0]
        [width width]
        [height height]
        [style '(no-resize-border)]))
 
 ;; ----------------------------------------------------
   
-;(module+ main
-  (send frame show #t)
-;)
+(module+ main
+  (send frame show #t))

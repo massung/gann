@@ -54,7 +54,7 @@ the solution to the puzzle is.
 (define guess-space (* color-space N))
 (define key-space (* N 3))
 (define turn-space (+ guess-space key-space))
-(define input-space (+ (* turn-space max-guesses) max-guesses))
+(define input-space (* turn-space max-guesses))
 
 ;; all possible actions
 (define action-space
@@ -78,11 +78,7 @@ the solution to the puzzle is.
 
 ;; convert state to inputs
 (define (state->X st)
-  (begin0 (state-input st)
-
-          ; reset the turn input vector
-          (for ([i max-guesses])
-            (mset! (state-input st) i 0 (if (= i (state-turn st)) 1 0)))))
+  (state-input st))
 
 ;; given an answer and guess, return the keys
 (define (key-for-guess ans guess)
@@ -111,27 +107,14 @@ the solution to the puzzle is.
 
            ; is it game over?
            [won? (equal? guess ans)]
-           [lost? (>= (state-turn nst) max-guesses)]
+           [lost? (= (state-turn nst) max-guesses)]
 
-           ; was a duplicate guess made? penalize those
+           ; was a duplicate guess made? maybe penalize those
            [dup? (member guess guesses)]
 
            ; reward for this state
-           [reward (if won? 100 0)])
-#|
-      [lost? 0]         ; failure reward (sparse)
-                     [won? 100]        ; victory reward (sparse)
-                     [dup? 0]          ; no new information, that's bad
-                     [else             ; key reward (dense)
-                      (if (empty? keys)
-                          #f
-                          (for/fold ([n #f])
-                                    ([k key] [p (first keys)] #:unless (eq? k p))
-                            (match (cons p k)
-                              [(cons _ 'X) (+ (or n 0) 1)]          ; gaining X is probably bad
-                              [(cons _ '!) (+ (or n 0) 5)]          ; gaining ! is good
-                              [(cons _ '?) (+ (or n 0) 2)])))])])   ; gaining ? can be good
-  |#    
+           [reward (if (and (not (zero? turn)) won?) 1 0)])
+
       ; update the input vector for the state
       (update-input! (state-input nst) turn guess key)
 
@@ -144,13 +127,13 @@ the solution to the puzzle is.
 
 ;; how many nodes in the hidden layer(s)
 (define hidden-layer-n
-  (floor (* (+ input-space action-count max-guesses) 3/4)))
+  (floor (* (+ input-space action-count max-guesses) 2/3)))
 
 ;; create a simple xor model
 (define-seq-model mastermind-model
-  [(<dense-layer> hidden-layer-n .relu!)
-   ;(dense-layer hidden-layer-n .relu!)
-   (<dense-layer> action-count .relu!)]
+  [(dense-layer hidden-layer-n .relu!)
+   (dense-layer hidden-layer-n .relu!)
+   (dense-layer action-count .relu!)]
   #:inputs input-space)
 
 ;; create the DQN to train
@@ -159,7 +142,7 @@ the solution to the puzzle is.
                  [population-size 100]
                  [initial-state new-state]
                  [state->X state-input]
-                 [do-action perform-action]))
+                 [perform-action perform-action]))
 
 ;; 
 (define (train [n 100])
@@ -176,8 +159,9 @@ the solution to the puzzle is.
 
 ;; run through a single game
 (define (play)
+  (send (send dqn get-model) reset-state)
   (let take-turn ()
-    (unless (send dqn predict)
+    (unless (send dqn step)
       (take-turn)))
   (print-state (send dqn get-state)))
 

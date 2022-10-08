@@ -16,7 +16,6 @@ All rights reserved.
 (require "activation.rkt")
 (require "dnn.rkt")
 (require "dqn.rkt")
-(require "explore.rkt")
 (require "ga.rkt")
 (require "layer.rkt")
 (require "loss.rkt")
@@ -27,7 +26,6 @@ All rights reserved.
 (provide (all-from-out "activation.rkt"
                        "dnn.rkt"
                        "dqn.rkt"
-                       "explore.rkt"
                        "ga.rkt"
                        "layer.rkt"
                        "loss.rkt"
