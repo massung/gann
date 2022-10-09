@@ -69,10 +69,11 @@ All rights reserved.
 (define (perform st action)
   (match-let ([(state score x dx theta dt) st])
     (let* ([angle (abs (radians->degrees theta))]
+           [won? (> score 30)]
            [loss? (or (> angle 70) (not (< -6 x 6)))])
       (values
        ; reward for an ok angle
-       (- 10 angle (abs x))
+       (max (- 10 angle (abs x)) 0)
 
        ; create the new state
        (case action
@@ -83,7 +84,7 @@ All rights reserved.
          [else (step-state st)])              ; do nothing
        
        ; the state is terminal
-       loss?))))
+       (or won? loss?)))))
 
 ;; create the dqn model
 (define-seq-model polecart-model

@@ -93,7 +93,7 @@ All rights reserved.
          [loss? (> ny height)])
 
     ; return the reward and new state
-    (values (if hit-paddle? 1 0)
+    (values (max (- 10 (abs (- nx px))) 0)
 
             ; new state
             (state px
