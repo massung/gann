@@ -9,10 +9,6 @@ All rights reserved.
 
 |#
 
-(require racket/generic)
-
-;; ----------------------------------------------------
-
 (require flomat)
 (require plot)
 
@@ -41,7 +37,7 @@ All rights reserved.
     ; build the initial population
     (field [models (build-vector population-size (λ _ (model)))])
 
-    ; return the best model
+    ; return a model from the population
     (define/public (get-model [i 0])
       (vector-ref models i))
 
@@ -49,7 +45,7 @@ All rights reserved.
     (define/public (call X [i 0])
       (send (get-model i) call X))
 
-    ; train a single generation, return the loss and the model
+    ; train a single generation, return the best fitness
     (define/public (train fitness)
       (next-gen! models fitness <))
 

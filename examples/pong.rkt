@@ -93,7 +93,7 @@ All rights reserved.
          [loss? (> ny height)])
 
     ; return the reward and new state
-    (values (- paddle-size (abs (- nx px))) #;(if hit-paddle? 1 0)
+    (values (if hit-paddle? 1 0)
 
             ; new state
             (state px
@@ -125,7 +125,7 @@ All rights reserved.
                    (min (+ speed (if hit-top? 1 0)) 300)
                    
                    ;; update score
-                   (+ (state-score st) (if hit-top? 1 0)))
+                   (+ (state-score st) (if hit-paddle? 1 0)))
 
             ;; terminal state on ball loss
             loss?)))
@@ -146,14 +146,16 @@ All rights reserved.
            [population-size 50]
            [initial-state new-state]
            [state->X state->X]
-           [perform-action perform]
-           [batch-size #f]))
+           [perform-action perform]))
+
+    ; best, non-terminal agent state
+    (define st (new-state))
 
     ; draw the state of the best agent
     (super-new
      [paint-callback
       (λ (canvas dc)
-        (match-let ([(state x bx by angle speed score) (send dqn get-state)])
+        (match-let ([(state x bx by angle speed score) st])
           (send dc set-brush "black" 'solid)
           (send dc draw-text (format "SCORE: ~a" score) 5 5)
           (send dc set-brush "black" 'solid)
@@ -163,7 +165,7 @@ All rights reserved.
 
     ; perform agent actions, train network, and redraw
     (define/public (step)
-      (send dqn train #:watch? #t)
+      (set! st (first (send dqn step)))
       (send this refresh))))
 
 ;; create the window frame
@@ -176,7 +178,7 @@ All rights reserved.
          
          ; game loop timer
          (define timer (new timer%
-                            [interval 10]
+                            [interval 5]
                             [notify-callback (λ () (send canvas step))]))
 
          ; stop learning/playing

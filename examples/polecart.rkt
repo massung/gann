@@ -99,14 +99,16 @@ All rights reserved.
            [model polecart-model]
            [perform-action perform]
            [initial-state new-state]
-           [state->X state->X]
-           [batch-size #f]))
+           [state->X state->X]))
+
+    ; best, non-terminal agent state
+    (define st (new-state))
 
     ; drawing the state
     (super-new
      [paint-callback
       (λ (canvas dc)
-        (match-let ([(state score x dx theta dt) (send dqn get-state)])
+        (match-let ([(state score x dx theta dt) st])
           (let ([x (+ (/ W 2) (* x 20))])   ; move to the center and scale
             (send dc set-pen "black" 1 'solid)
             (send dc set-brush "black" 'solid)
@@ -122,7 +124,7 @@ All rights reserved.
 
     ; message to train agents and redraw
     (define/public (step-sim)
-      (send dqn train #:watch? #t)
+      (set! st (first (send dqn step)))
       (send this refresh))))
 
 ;; create the window frame

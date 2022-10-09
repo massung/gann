@@ -9,10 +9,6 @@ All rights reserved.
 
 |#
 
-(require racket/generic)
-
-;; ----------------------------------------------------
-
 (require flomat)
 (require plot)
 
@@ -38,14 +34,7 @@ All rights reserved.
     ; constructor fields
     (init-field initial-state
                 state->X
-                perform-action
-
-                ; learning fields
-                [gamma 0.9]
-                [batch-size 500])
-
-    ; batch count for this generation
-    (define batch 0)
+                perform-action)
 
     ; define a custom agent class
     (define agent%
@@ -86,57 +75,57 @@ All rights reserved.
         (define/public (recomb other)
           (new this% [model (send model recomb (get-field model other))]))))
 
-    ; initialize the population with agent models
-    (super-new [model (λ () (new agent% [model (model)]))])
+    ; create a constructor for an agent model
+    (define (agent)
+      (new agent% [model (model)]))
 
-    ; allow use of the get-model method
-    (inherit get-model)
-    
-    ; allow use of all the models
-    (inherit-field models)
+    ; build the initial population
+    (super-new [model agent])
 
-    ; return the state of the best agent
+    ; models are actually agents that have models in them
+    (inherit-field [agents models])
+
+    ; return a model from the agent population
+    (define/override (get-model [i 0])
+      (get-field model (get-agent i)))
+
+    ; return an agent from the population
+    (define/public (get-agent [i 0])
+      (vector-ref agents i))
+
+    ; return the state of an agent
     (define/public (get-state [i 0])
-      (get-field state (get-model i)))
+      (get-field state (get-agent i)))
 
-    ; have the best agent step and perform an action
-    (define/public (step [i 0])
-      (send (get-model i) step))
-
-    ; advance to the next generation
-    (define/private (next-gen)
-      (begin0 (next-gen! models (λ (agent) (get-field reward agent)) >)
-
-              ; reset batch counter
-              (set! batch 0)
-      
-              ; reset agents
-              (for ([agent models])
-                (send agent reset-state))))
+    ; are all agents in a terminal state
+    (define (all-terminal?)
+      (for/and ([agent agents])
+        (get-field terminal? agent)))
     
     ; perform actions for each agent
-    (define/override (train #:watch? [watch? #f])
-      (set! batch (add1 batch))
+    (define/public (step #:train? [train? #t])
+      (begin0 (for/list ([agent agents] #:unless (get-field terminal? agent))
+                (send agent step)
 
-      ; true if all agents are terminal or batch is full
-      (and (or (for/fold ([all-terminal? #t])
-                         ([agent models])
-                 (let ([terminal? (send agent step)])
-                   (and all-terminal? terminal?)))
-               
-               ; batch full?
-               (and batch-size (>= batch batch-size))
-               
-               ; watched agent in terminal state
-               (and watch? (get-field terminal? (get-model))))
+                ; return the state for all agents
+                (get-field state agent))
 
-           ; advance agents to the next generation
-           (next-gen)))
+              ; if all agents are terminal, train the next generation
+              (when (and train? (all-terminal?))
+                (train))))
+
+    ; train the next generation and return the best fitness
+    (define/override (train)
+      (begin0 (next-gen! agents (λ (agent) (get-field reward agent)) >)
+      
+              ; reset agents
+              (for ([agent agents])
+                (send agent reset-state))))
 
     ; train agents for multiple generations
-    (define/override (train+ #:generations [n 100])
+    (define/override (train+ #:generations [n 100] #:steps [batch-size 100])
       (let ([reward (for/list ([x n])
-                      (do ([y (train)
-                              (train)])
-                        [y (list x y)]))])
+                      (for ([_ batch-size] #:break (all-terminal?))
+                        (step))
+                      (list x (train)))])
         (plot (lines reward #:y-min 0) #:x-label "Generation" #:y-label "Reward")))))
